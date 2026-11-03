@@ -1,0 +1,172 @@
+// assertCustomerAccountData.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Assert customer has correct bank data', async ({ page }) => {
+  /* 
+  Test:
+  1. Open Wizard bank link 
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer
+  2. Select Hermoine Granger
+  3. Click [Login]
+  4. Assert Account Number in Dropdown next to the Hermoine Granger name
+  5. Assert Account Number text
+  5. Assert Balance text
+  6. Assert Currency text
+  */
+
+  await page.goto('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer');
+  await page.getByTestId('userSelect').selectOption({ label: 'Hermoine Granger' });
+  await page.getByRole('button', { name: 'Login' }).click();
+
+  const accountInfo = page.locator('.center').first();
+
+  await expect(page.getByTestId('accountSelect')).toHaveValue('number:1001');
+  await expect(accountInfo).toContainText('Account Number : 1001');
+  await expect(accountInfo).toContainText('Balance : 5096');
+  await expect(accountInfo).toContainText('Currency : Dollar');
+});
+
+// assertCustomerCorrectLogout.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Assert correct customer Logout', async ({ page }) => {
+  /* 
+  Test:
+  1. Open Wizard bank link
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/login 
+  2. Click [Customer Login]
+  3. Select Neville Longbottom
+  4. Click [Login]
+  5. Click [Logout]
+  6. Wait for the page URL
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer
+  7. Assert the drop-down is present with empty value 
+  */
+
+  await page.goto('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/login');
+  await page.getByRole('button', { name: 'Customer Login' }).click();
+  await page.getByTestId('userSelect').selectOption({ label: 'Neville Longbottom' });
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.waitForURL('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer');
+  await expect(page.getByTestId('userSelect')).toBeVisible();
+  await expect(page.getByTestId('userSelect')).toHaveValue('');
+});
+
+// assertDepositCanBeOpened.spec.js
+import { test, expect } from '@playwright/test';
+import { faker } from '@faker-js/faker';
+
+test('Assert the deposit can be opened', async ({ page }) => {
+  /* 
+  Test:
+  1. Open Wizard bank login for Customer using link
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer
+  2. Select "Harry Potter"
+  3. Click [Login]
+  4. Click [Deposit]
+  5. Fill deposit value
+  6. Click [Deposit]
+  7. Assert 'Deposit Successful' message is visible
+  8. Assert Balance
+  9. Click [Transactions]
+  10. Assert table heder is visible
+  11. Reload the page
+  12. Assert amount cell in First Row contains the required amount
+  13. Assert transaction type cell in First Row contains the required type
+
+  Tips:
+  1. Use faker to generate random value for deposit:
+  - Import faker using command "import { faker } from '@faker-js/faker';"
+  - Generate random amount using below. Then use the "amount" in the test.  
+    const amount = faker.number.int(100).toString();
+  */
+
+  const amount = faker.number.int(100).toString();
+
+  await page.goto('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer');
+  await page.getByTestId('userSelect').selectOption({ label: 'Harry Potter' });
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('button', { name: 'Deposit' }).click();
+  await page.getByPlaceholder('amount').fill(amount);
+  await page.locator('form').getByRole('button', { name: 'Deposit' }).click();
+  await expect(page.getByText('Deposit Successful')).toBeVisible();
+  await expect(page.locator('.center').first()).toContainText(`Balance : ${amount}`);
+  await page.getByRole('button', { name: 'Transactions' }).click();
+  await expect(page.getByRole('table').locator('thead')).toBeVisible();
+  await page.reload();
+
+  const firstRow = page.getByTestId('anchor0');
+
+  await expect(firstRow.locator('td').nth(1)).toContainText(amount);
+  await expect(firstRow.locator('td').nth(2)).toContainText('Credit');
+});
+
+// assertEmptyTransactionsLIst.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Assert the empty transactions list has correct values', async ({
+  page,
+}) => {
+  /* 
+  Test:
+  1. Open Wizard bank login for Customer using link 
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer
+  2. Select "Albus Dumbledore"
+  3. Click [Login]
+  4. Click [Transactions]
+  5. Assert first column header conatins text "Date-Time"
+  6. Assert second column header conatins text "Amount"
+  7. Assert first column header conatins text "Transaction Type"
+  8. Assert the first row in table is hidden
+  */
+
+  await page.goto('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer');
+  await page.getByTestId('userSelect').selectOption({ label: 'Albus Dumbledore' });
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('button', { name: 'Transactions' }).click();
+
+  const headerCells = page.getByRole('table').locator('thead td');
+
+  await expect(headerCells.nth(0)).toContainText('Date-Time');
+  await expect(headerCells.nth(1)).toContainText('Amount');
+  await expect(headerCells.nth(2)).toContainText('Transaction Type');
+  await expect(page.getByTestId('anchor0')).toBeHidden();
+});
+
+// assertErrorWithdrawWhenEmptyBalance.spec.js
+import { test, expect } from '@playwright/test';
+import { faker } from '@faker-js/faker';
+
+test('Assert the customer cannot withdraw money with empty balance', async ({
+  page,
+}) => {
+  /* 
+  Test:
+  1. Open Wizard bank login for Customer using link 
+    https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer
+  2. Select "Ron Weasly"
+  3. Click [Login]
+  4. Assert the "Balance : 0" text is present
+  5. Click [Withdrawl]
+  6. Type amount of money to withdraw
+  7. Click [Withdraw]
+  8. Assert error message is visible:
+    'Transaction Failed. You can not withdraw amount more than the balance.'
+  */
+
+  const amount = faker.number.int({ min: 1, max: 100 }).toString();
+
+  await page.goto('https://www.globalsqa.com/angularJs-protractor/BankingProject/#/customer');
+  await page.getByTestId('userSelect').selectOption({ label: 'Ron Weasly' });
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page.getByText('Balance : 0')).toBeVisible();
+  await page.getByRole('button', { name: 'Withdrawl' }).click();
+  await page.getByPlaceholder('amount').fill(amount);
+  await page.locator('form').getByRole('button', { name: 'Withdraw' }).click();
+  await expect(
+    page.getByText(
+      'Transaction Failed. You can not withdraw amount more than the balance.',
+    ),
+  ).toBeVisible();
+});
