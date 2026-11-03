@@ -1,0 +1,141 @@
+// MenuPage.js
+import { expect } from '@playwright/test';
+
+export class MenuPage {
+  constructor(page) {
+    this.page = page;
+    this.cartLink = page.getByLabel('Cart page');
+    this.totalCheckout = page.getByTestId('checkout');
+    this.promoMessage = page.getByText(
+      "It's your lucky day! Get an extra cup of Mocha for $4.",
+    );
+    this.promoAcceptButton = page.getByRole('button', {
+      name: 'Yes, of course!',
+    });
+    this.promoDeclineButton = page.getByRole('button', {
+      name: "Nah, I'll skip.",
+    });
+  }
+
+  cupLocator(name) {
+    return this.page.getByTestId(name);
+  }
+
+  cupListItem(name) {
+    return this.page
+      .getByRole('listitem')
+      .filter({ has: this.cupLocator(name) });
+  }
+
+  async open() {
+    await this.page.goto('https://coffee-cart.app/');
+  }
+
+  async clickCup(name) {
+    await this.cupLocator(name).click();
+  }
+
+  async clickCartLink() {
+    await this.cartLink.click();
+  }
+
+  async assertCupCostContains(name, cost) {
+    await expect(this.cupListItem(name)).toContainText(cost);
+  }
+
+  async assertTotalCheckoutContains(text) {
+    await expect(this.totalCheckout).toContainText(text);
+  }
+
+  async assertPromoMessageIsVisible() {
+    await expect(this.promoMessage).toBeVisible();
+  }
+
+  async clickPromoAcceptButton() {
+    await this.promoAcceptButton.click();
+  }
+
+  async clickPromoDeclineButton() {
+    await this.promoDeclineButton.click();
+  }
+}
+
+// CartPage.js
+import { expect } from '@playwright/test';
+
+export class CartPage {
+  constructor(page) {
+    this.page = page;
+    this.cartList = page.getByRole('list').nth(1);
+    this.emptyCartMessage = page.getByText('No coffee, go add some.');
+    this.totalCheckout = page.getByTestId('checkout');
+  }
+
+  itemLocator(name) {
+    return this.cartList.getByRole('listitem').filter({ hasText: name });
+  }
+
+  itemNameLocator(name) {
+    return this.itemLocator(name).locator('div').nth(0);
+  }
+
+  itemUnitLocator(name) {
+    return this.itemLocator(name).locator('div').nth(1);
+  }
+
+  itemTotalCostLocator(name) {
+    return this.itemLocator(name).locator('div').nth(3);
+  }
+
+  async open() {
+    await this.page.goto('https://coffee-cart.app/cart');
+  }
+
+  async waitForLoading() {
+    await this.page.waitForURL('https://coffee-cart.app/cart');
+  }
+
+  async reload() {
+    await this.page.reload();
+  }
+
+  async clickAddOne(name) {
+    await this.page.getByRole('button', { name: `Add one ${name}` }).click();
+  }
+
+  async clickRemoveOne(name) {
+    await this.page.getByRole('button', { name: `Remove one ${name}` }).click();
+  }
+
+  async clickRemoveAll(name) {
+    await this.page.getByLabel(`Remove all ${name}`).click();
+  }
+
+  async assertItemIsVisible(name) {
+    await expect(this.itemLocator(name)).toBeVisible();
+  }
+
+  async assertItemIsHidden(name) {
+    await expect(this.itemLocator(name)).toBeHidden();
+  }
+
+  async assertItemNameContains(name) {
+    await expect(this.itemNameLocator(name)).toContainText(name);
+  }
+
+  async assertItemUnitContains(name, unit) {
+    await expect(this.itemUnitLocator(name)).toContainText(unit);
+  }
+
+  async assertItemTotalCostContains(name, cost) {
+    await expect(this.itemTotalCostLocator(name)).toContainText(cost);
+  }
+
+  async assertTotalCheckoutContains(text) {
+    await expect(this.totalCheckout).toContainText(text);
+  }
+
+  async assertEmptyCartMessageIsVisible() {
+    await expect(this.emptyCartMessage).toBeVisible();
+  }
+}
