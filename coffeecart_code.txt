@@ -1,0 +1,220 @@
+// cartCleanedAfterPageRefresh.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Cart cleaned after page refresh', async ({ page }) => {
+  /*
+  Test:
+  1. Open the Coffee Cart menu page https://coffee-cart.app/
+  2. Click on the "Cappuccino" cup
+  4. Click one the "Cart" link
+  5. Wait for the URL https://coffee-cart.app/cart 
+  6. Assert Cappucion is visible in the cart
+  7. Reload the page
+  8. Assert Cappucion is not viisble (hidden) in the cart
+  9. Assert the message "No coffee, go add some" is visible
+
+  Tips: 
+  1. Use "await page.reload();" to reload the page.
+  2. Use filter({hasText: "ItemName"}) to find the required drink row.
+    Do not rely on the exact order of the drinks. 
+  */
+
+  await page.goto('https://coffee-cart.app/');
+  await page.getByTestId('Cappuccino').click();
+  await page.getByLabel('Cart page').click();
+  await page.waitForURL('https://coffee-cart.app/cart');
+
+  const cartList = page.getByRole('list').nth(1);
+  const cappuccino = cartList.getByRole('listitem').filter({ hasText: 'Cappuccino' });
+
+  await expect(cappuccino).toBeVisible();
+  await page.reload();
+  await expect(cappuccino).toBeHidden();
+  await expect(page.getByText('No coffee, go add some.')).toBeVisible();
+});
+
+// cartUpdatedAfterClickingMinusButton.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Cart updated after clicking minus for drinks', async ({ page }) => {
+  /*
+  Test:
+    1. Open the Coffee Cart menu page https://coffee-cart.app/
+    2. Click on the "Cappuccino" cup
+    3. Click on the "Espresso" cup
+    4. Click one the "Cart" link
+    5. Wait for the URL https://coffee-cart.app/cart 
+    6. Assert that Espresso is visible in the cart
+    6. Click "-" for Espresso
+    7. Assert that Espresso is removed from the cart
+    9. Assert that Cappucion is viisble in the cart
+    10. Click - for Cappucion
+    11. Assert that Cappucion is removed from the cart
+    12. Assert the message "No coffee, go add some" is visible
+  
+  Tip: 
+    1. Use filter({hasText: "ItemName"}) to find the required drink row. 
+      Do not rely on the exact order of the drinks. 
+  */
+
+  await page.goto('https://coffee-cart.app/');
+  await page.getByTestId('Cappuccino').click();
+  await page.getByTestId('Espresso').click();
+  await page.getByLabel('Cart page').click();
+  await page.waitForURL('https://coffee-cart.app/cart');
+
+  const cartList = page.getByRole('list').nth(1);
+  const espresso = cartList.getByRole('listitem').filter({ hasText: 'Espresso' });
+  const cappuccino = cartList.getByRole('listitem').filter({ hasText: 'Cappuccino' });
+
+  await expect(espresso).toBeVisible();
+  await espresso.getByRole('button', { name: 'Remove one Espresso' }).click();
+  await expect(espresso).toBeHidden();
+  await expect(cappuccino).toBeVisible();
+  await cappuccino.getByRole('button', { name: 'Remove one Cappuccino' }).click();
+  await expect(cappuccino).toBeHidden();
+  await expect(page.getByText('No coffee, go add some.')).toBeVisible();
+});
+
+// cartUpdatedAfterClickingPlusButton.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Cart updated after clicking plus for drinks', async ({ page }) => {
+  /*
+  Test:
+  1. Open the Coffee Cart menu page https://coffee-cart.app/
+  2. Click on the "Cappuccino" cup
+  3. Click on the "Espresso" cup
+  4. Click one the "Cart" link
+  5. Wait for the URL https://coffee-cart.app/cart 
+  6. Assert Total Cost for Espresso is '$10.00'
+  7. Click + for Espresso
+  8. Assert that Total Cost for Espresso is '$20.00'
+  9. Assert Total Cost for Cappuccino is '$19.00'
+  10. Click + for Cappucino
+  11. Assert Total Cost for Cappuccino is '$38.00'
+  12. Assert the Total cost of the Cart is $58.00
+
+  Tip: 
+  1. Use filter({hasText: "ItemName"}) to find the required drink row. 
+    Do not rely on the exact order of the drinks. 
+   */
+
+  await page.goto('https://coffee-cart.app/');
+  await page.getByTestId('Cappuccino').click();
+  await page.getByTestId('Espresso').click();
+  await page.getByLabel('Cart page').click();
+  await page.waitForURL('https://coffee-cart.app/cart');
+
+  const cartList = page.getByRole('list').nth(1);
+  const espresso = cartList.getByRole('listitem').filter({ hasText: 'Espresso' });
+  const cappuccino = cartList.getByRole('listitem').filter({ hasText: 'Cappuccino' });
+  const espressoTotal = espresso.locator('div').nth(3);
+  const cappuccinoTotal = cappuccino.locator('div').nth(3);
+
+  await expect(espressoTotal).toContainText('$10.00');
+  await espresso.getByRole('button', { name: 'Add one Espresso' }).click();
+  await expect(espressoTotal).toContainText('$20.00');
+  await expect(cappuccinoTotal).toContainText('$19.00');
+  await cappuccino.getByRole('button', { name: 'Add one Cappuccino' }).click();
+  await expect(cappuccinoTotal).toContainText('$38.00');
+  await expect(page.getByTestId('checkout')).toContainText('Total: $58.00');
+});
+
+// mochaAddedToCartOnPromoAccept.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Discounted Mocha added to the Cart after promo accepting', async ({
+  page,
+}) => {
+  /*
+  Test:
+  1. Open the Coffee Cart menu page https://coffee-cart.app/
+  2. Click on the "Cappuccino" cup
+  3. Click on the "Espresso" cup
+  4. Click on the "Americano" cup
+  5. Assert the message
+    "It's your lucky day! Get an extra cup of Mocha for $4." is visible
+  6. Click the button 'Yes, of course!'
+  7. Click one the "Cart" link
+  8. Wait for the URL https://coffee-cart.app/cart 
+  9. Assert the "Espresso" has Total cost '$10.00'
+  10. Assert the "(Discounted) Mocha" has Total cost '$4.00'
+  11. Assert the "Cappuccino" has Total cost '$19.00'
+  12. Assert the "Americano" has Total cost '$7.00'
+
+  Tips: 
+  1. Use double-quotes for messages which contains apostrophe.
+    Example: "Nah, I'll skip."
+  2. Use filter({hasText: "ItemName"}) to find the required drink row. 
+    Do not rely on the exact order of the drinks. 
+   */
+
+  await page.goto('https://coffee-cart.app/');
+  await page.getByTestId('Cappuccino').click();
+  await page.getByTestId('Espresso').click();
+  await page.getByTestId('Americano').click();
+  await expect(
+    page.getByText("It's your lucky day! Get an extra cup of Mocha for $4."),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Yes, of course!' }).click();
+  await page.getByLabel('Cart page').click();
+  await page.waitForURL('https://coffee-cart.app/cart');
+
+  const cartList = page.getByRole('list').nth(1);
+  const row = (name) => cartList.getByRole('listitem').filter({ hasText: name });
+
+  await expect(row('Espresso').locator('div').nth(3)).toContainText('$10.00');
+  await expect(row('(Discounted) Mocha').locator('div').nth(3)).toContainText('$4.00');
+  await expect(row('Cappuccino').locator('div').nth(3)).toContainText('$19.00');
+  await expect(row('Americano').locator('div').nth(3)).toContainText('$7.00');
+});
+
+// mochaNotAddedToCartOnPromoDecline.spec.js
+import { test, expect } from '@playwright/test';
+
+test('Discounted Mocha added to the Cart after promo rejecting', async ({
+  page,
+}) => {
+  /*
+  Test:
+  1. Open the Coffee Cart menu page https://coffee-cart.app/
+  2. Click on the "Cappuccino" cup
+  3. Click on the "Espresso" cup
+  4. Click on the "Americano" cup
+  5. Assert the message 
+    "It's your lucky day! Get an extra cup of Mocha for $4." is visible
+  6. Click the button "Nah, I'll skip."
+  7. Click one the "Cart" link
+  8. Wait for the URL https://coffee-cart.app/cart 
+  9. Assert the "Espresso" listitem is visible in the cart
+  10. Assert the "(Discounted) Mocha" listitem is not visible in the cart
+  11. Assert the "Cappuccino" listitem is visible in the cart
+  12. Assert the "Americano" listitem is visible in the cart
+   
+  Tips:
+  1. Use double-quotes for messages which contains apostrophe.
+    Example: "Nah, I'll skip."
+  2. Use filter({hasText: "ItemName"}) to find the required drink row. 
+    Do not rely on the exact order of the drinks. 
+  */
+
+  await page.goto('https://coffee-cart.app/');
+  await page.getByTestId('Cappuccino').click();
+  await page.getByTestId('Espresso').click();
+  await page.getByTestId('Americano').click();
+  await expect(
+    page.getByText("It's your lucky day! Get an extra cup of Mocha for $4."),
+  ).toBeVisible();
+  await page.getByRole('button', { name: "Nah, I'll skip." }).click();
+  await page.getByLabel('Cart page').click();
+  await page.waitForURL('https://coffee-cart.app/cart');
+
+  const cartList = page.getByRole('list').nth(1);
+  const row = (name) => cartList.getByRole('listitem').filter({ hasText: name });
+
+  await expect(row('Espresso')).toBeVisible();
+  await expect(row('(Discounted) Mocha')).toBeHidden();
+  await expect(row('Cappuccino')).toBeVisible();
+  await expect(row('Americano')).toBeVisible();
+});
