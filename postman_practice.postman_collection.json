@@ -10,8 +10,10 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Shared helpers for all requests. Declared without \"const\" so request scripts can use them.",
-          "utils = {",
+          "// Shared helpers for all requests. \"makeUtils\" is declared without \"const\" so request scripts can use it;",
+          "// every script calls makeUtils(pm) with its OWN pm, so pm.sendRequest / pm.response work in that script.",
+          "makeUtils = function (pm) {",
+          "const utils = {",
           "  baseUrl: pm.collectionVariables.get('url'),",
           "  password: pm.collectionVariables.get('passwordConduit'),",
           "",
@@ -123,6 +125,8 @@
           "      if (message) pm.expect(String(errors[field])).to.include(message);",
           "    });",
           "  },",
+          "};",
+          "return utils;",
           "};"
         ]
       }
@@ -132,8 +136,10 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Shared helpers for all requests. Declared without \"const\" so request scripts can use them.",
-          "utils = {",
+          "// Shared helpers for all requests. \"makeUtils\" is declared without \"const\" so request scripts can use it;",
+          "// every script calls makeUtils(pm) with its OWN pm, so pm.sendRequest / pm.response work in that script.",
+          "makeUtils = function (pm) {",
+          "const utils = {",
           "  baseUrl: pm.collectionVariables.get('url'),",
           "  password: pm.collectionVariables.get('passwordConduit'),",
           "",
@@ -245,6 +251,8 @@
           "      if (message) pm.expect(String(errors[field])).to.include(message);",
           "    });",
           "  },",
+          "};",
+          "return utils;",
           "};"
         ]
       }
@@ -272,6 +280,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -281,6 +290,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -317,6 +327,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('randomEmail', 'none' + utils.randomString(10) + '@mail.com');"
                 ]
               }
@@ -326,6 +337,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email or password', 'is invalid');"
@@ -361,6 +373,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email', \"can't be blank\");"
@@ -396,6 +409,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -405,6 +419,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('password', \"can't be blank\");"
@@ -440,6 +455,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "const u = utils.uniqueUser();",
                   "pm.collectionVariables.set('newUsername', u.username);",
                   "pm.collectionVariables.set('newEmail', u.email);"
@@ -451,6 +467,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -487,6 +504,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
                 ]
@@ -497,6 +515,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('username', 'already been taken');"
@@ -532,6 +551,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -542,6 +562,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email', 'already been taken');"
@@ -577,6 +598,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testUsername', '1' + utils.randomString(7));",
                   "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
                 ]
@@ -587,6 +609,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('username');"
@@ -622,6 +645,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testUsername', utils.randomString(41));",
                   "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
                 ]
@@ -632,6 +656,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('username');"
@@ -667,6 +692,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testUsername', 'qa ' + utils.randomString(5));",
                   "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
                 ]
@@ -677,6 +703,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('username');"
@@ -712,6 +739,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testUsername', '');",
                   "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
                 ]
@@ -722,6 +750,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('username');"
@@ -757,6 +786,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testEmail', '');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -767,6 +797,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email');"
@@ -802,6 +833,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testEmail', 'qa' + utils.randomString(6) + 'mail.com');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -812,6 +844,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email');"
@@ -847,6 +880,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testEmail', 'qa' + utils.randomString(6) + '@mailcom');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -857,6 +891,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email');"
@@ -892,6 +927,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testEmail', '@mail.com');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -902,6 +938,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email');"
@@ -937,6 +974,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "pm.collectionVariables.set('testEmail', utils.randomString(250) + '@mail.com');",
                   "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
                 ]
@@ -947,6 +985,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('email');"
@@ -982,6 +1021,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "const u = utils.uniqueUser();",
                   "pm.collectionVariables.set('newUsername', u.username);",
                   "pm.collectionVariables.set('newEmail', u.email);"
@@ -993,6 +1033,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(422);",
                   "utils.assertTime();",
                   "utils.assertError('password', \"can't be blank\");"
@@ -1028,6 +1069,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -1037,6 +1079,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();"
@@ -1063,6 +1106,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "const update = { image: 'https://i.imgur.com/qa' + utils.randomString(5) + '.png' };",
                   "pm.collectionVariables.set('updateValue', update.image);",
@@ -1076,6 +1120,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -1116,6 +1161,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "const update = { bio: 'Bio ' + utils.randomString(10) };",
                   "pm.collectionVariables.set('updateValue', update.bio);",
@@ -1129,6 +1175,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -1169,6 +1216,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "const update = { username: 'qa' + utils.randomString(8) };",
                   "pm.collectionVariables.set('updateValue', update.username);",
@@ -1182,6 +1230,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -1222,6 +1271,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "const update = { email: 'qa' + utils.randomString(8) + '@mail.com' };",
                   "pm.collectionVariables.set('updateValue', update.email);",
@@ -1235,6 +1285,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();",
@@ -1275,6 +1326,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "pm.collectionVariables.set('newPassword', pm.collectionVariables.get('passwordConduit') + 'X');"
                 ]
@@ -1285,6 +1337,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertUserBody();"
@@ -1324,6 +1377,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(401);",
                   "utils.assertTime();"
                 ]
@@ -1363,6 +1417,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -1372,6 +1427,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticleBody();",
@@ -1412,6 +1468,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1421,6 +1478,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticleBody();",
@@ -1462,6 +1520,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1471,6 +1530,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(204);",
                   "utils.assertTime();"
                 ]
@@ -1496,6 +1556,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1505,6 +1566,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticleBody();",
@@ -1528,6 +1590,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticlesList();"
@@ -1549,6 +1612,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -1558,6 +1622,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticlesList();"
@@ -1584,6 +1649,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticlesList();",
@@ -1606,6 +1672,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1615,6 +1682,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertArticlesList();",
@@ -1638,6 +1706,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(401);",
                   "utils.assertTime();"
                 ]
@@ -1672,6 +1741,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1681,6 +1751,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(401);",
                   "utils.assertTime();",
                   "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
@@ -1702,6 +1773,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token, () => utils.registerUser('second')));"
                 ]
               }
@@ -1711,6 +1783,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(403);",
                   "utils.assertTime();",
                   "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
@@ -1737,6 +1810,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');",
                   "pm.collectionVariables.set('randomSlug', 'no-such-article-' + utils.randomString(10));"
                 ]
@@ -1747,6 +1821,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(404);",
                   "utils.assertTime();"
                 ]
@@ -1777,6 +1852,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main');"
                 ]
               }
@@ -1786,6 +1862,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertProfileBody();",
@@ -1808,6 +1885,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', () => utils.registerUser('second'));"
                 ]
               }
@@ -1817,6 +1895,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertProfileBody();",
@@ -1844,6 +1923,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.registerUser('second', (s) => pm.sendRequest({ url: utils.baseUrl + '/profiles/' + s.username + '/follow', method: 'POST', header: { Authorization: 'Token ' + u.token } }, () => {})));"
                 ]
               }
@@ -1853,6 +1933,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "utils.assertProfileBody();",
@@ -1885,6 +1966,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "pm.test('Assert tags is an array', () => pm.expect(pm.response.json().tags).to.be.an('array'));"
@@ -1911,6 +1993,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
                 ]
               }
@@ -1920,6 +2003,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "pm.test('Assert comments list contains the created comment', () => pm.expect(pm.response.json().comments.map(c => c.id)).to.include(pm.collectionVariables.get('commentId')));",
@@ -1942,6 +2026,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token));"
                 ]
               }
@@ -1951,6 +2036,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(200);",
                   "utils.assertTime();",
                   "pm.test('Assert the response body has comment properties', () => pm.expect(pm.response.json().comment).to.include.keys('id', 'body', 'createdAt', 'author'));",
@@ -1991,6 +2077,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
                 ]
               }
@@ -2000,6 +2087,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(204);",
                   "utils.assertTime();",
                   "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
@@ -2026,6 +2114,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug, () => utils.registerUser('second'))));"
                 ]
               }
@@ -2035,6 +2124,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(403);",
                   "utils.assertTime();",
                   "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
@@ -2061,6 +2151,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
                 ]
               }
@@ -2070,6 +2161,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const utils = makeUtils(pm);",
                   "utils.assertStatus(401);",
                   "utils.assertTime();",
                   "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
