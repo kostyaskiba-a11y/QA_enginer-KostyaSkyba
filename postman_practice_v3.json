@@ -1,0 +1,2181 @@
+{
+  "info": {
+    "name": "Postman Practice [Kostiantin Skyba]",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Conduit API tests (Mate Academy, module \"Working With Infrastructure\")."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Shared helpers for all requests. \"makeUtils\" is declared without \"const\" so request scripts can use it;",
+          "// every script calls makeUtils(pm) with its OWN pm, so pm.sendRequest / pm.response work in that script.",
+          "makeUtils = function (pm) {",
+          "const utils = {",
+          "  baseUrl: pm.collectionVariables.get('url'),",
+          "  password: pm.collectionVariables.get('passwordConduit'),",
+          "",
+          "  randomString(length) {",
+          "    const chars = 'abcdefghijklmnopqrstuvwxyz';",
+          "    let result = '';",
+          "    for (let i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));",
+          "    return result;",
+          "  },",
+          "",
+          "  uniqueUser() {",
+          "    const name = 'qa' + utils.randomString(8);",
+          "    return { username: name, email: name + '@mail.com', password: utils.password };",
+          "  },",
+          "",
+          "  // Registers a new user and saves username/email/token into collection variables with the given prefix.",
+          "  registerUser(prefix, callback) {",
+          "    const user = utils.uniqueUser();",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/users',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json' },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ user }) },",
+          "    }, (err, res) => {",
+          "      if (err || res.code !== 200) { console.log('registerUser failed', err, res && res.code, res && res.text()); return; }",
+          "      const data = res.json().user;",
+          "      pm.collectionVariables.set(prefix + 'Username', data.username);",
+          "      pm.collectionVariables.set(prefix + 'Email', data.email);",
+          "      pm.collectionVariables.set(prefix + 'Token', data.token);",
+          "      if (callback) callback(data);",
+          "    });",
+          "  },",
+          "",
+          "  // Creates an article for the user with the given token and saves its slug.",
+          "  createArticle(token, callback) {",
+          "    const tag = 'qa' + utils.randomString(5);",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json', Authorization: 'Token ' + token },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ article: { title: 'Title ' + utils.randomString(6), description: 'Description', body: 'Body text', tagList: [tag] } }) },",
+          "    }, (err, res) => {",
+          "      if (err) throw err;",
+          "      const article = res.json().article;",
+          "      pm.collectionVariables.set('slug', article.slug);",
+          "      pm.collectionVariables.set('tag', tag);",
+          "      if (callback) callback(article);",
+          "    });",
+          "  },",
+          "",
+          "  // Posts a comment to the article and saves the comment id.",
+          "  createComment(token, slug, callback) {",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles/' + slug + '/comments',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json', Authorization: 'Token ' + token },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ comment: { body: 'Comment ' + utils.randomString(6) } }) },",
+          "    }, (err, res) => {",
+          "      if (err) throw err;",
+          "      pm.collectionVariables.set('commentId', res.json().comment.id);",
+          "      if (callback) callback(res.json().comment);",
+          "    });",
+          "  },",
+          "",
+          "  // Deletes the created article to keep the database clean (called from the Tests tab).",
+          "  deleteArticle(slug, token) {",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles/' + slug,",
+          "      method: 'DELETE',",
+          "      header: { Authorization: 'Token ' + token },",
+          "    }, () => {});",
+          "  },",
+          "",
+          "  // ---------- Reusable tests ----------",
+          "  assertStatus(code) {",
+          "    pm.test('Assert response status code is ' + code, () => pm.response.to.have.status(code));",
+          "  },",
+          "  assertTime(ms = 2000) {",
+          "    pm.test('Assert response time is less than ' + ms + ' ms', () => pm.expect(pm.response.responseTime).to.be.below(ms));",
+          "  },",
+          "  assertUserBody() {",
+          "    pm.test('Assert the response body has user properties', () => {",
+          "      const user = pm.response.json().user;",
+          "      pm.expect(user).to.have.all.keys('email', 'username', 'bio', 'image', 'token');",
+          "    });",
+          "  },",
+          "  assertArticleBody() {",
+          "    pm.test('Assert the response body has article properties', () => {",
+          "      const a = pm.response.json().article;",
+          "      pm.expect(a).to.include.keys('slug', 'title', 'description', 'body', 'tagList', 'createdAt', 'updatedAt', 'favorited', 'favoritesCount', 'author');",
+          "    });",
+          "  },",
+          "  assertArticlesList() {",
+          "    pm.test('Assert the response body has articles list and count', () => {",
+          "      const json = pm.response.json();",
+          "      pm.expect(json.articles).to.be.an('array');",
+          "      pm.expect(json.articlesCount).to.be.a('number');",
+          "    });",
+          "  },",
+          "  assertProfileBody() {",
+          "    pm.test('Assert the response body has profile properties', () => {",
+          "      pm.expect(pm.response.json().profile).to.include.keys('username', 'bio', 'image', 'following');",
+          "    });",
+          "  },",
+          "  assertError(field, message) {",
+          "    pm.test('Assert validation message for \"' + field + '\"', () => {",
+          "      const errors = pm.response.json().errors;",
+          "      pm.expect(errors).to.have.property(field);",
+          "      if (message) pm.expect(String(errors[field])).to.include(message);",
+          "    });",
+          "  },",
+          "};",
+          "return utils;",
+          "};"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Shared helpers for all requests. \"makeUtils\" is declared without \"const\" so request scripts can use it;",
+          "// every script calls makeUtils(pm) with its OWN pm, so pm.sendRequest / pm.response work in that script.",
+          "makeUtils = function (pm) {",
+          "const utils = {",
+          "  baseUrl: pm.collectionVariables.get('url'),",
+          "  password: pm.collectionVariables.get('passwordConduit'),",
+          "",
+          "  randomString(length) {",
+          "    const chars = 'abcdefghijklmnopqrstuvwxyz';",
+          "    let result = '';",
+          "    for (let i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));",
+          "    return result;",
+          "  },",
+          "",
+          "  uniqueUser() {",
+          "    const name = 'qa' + utils.randomString(8);",
+          "    return { username: name, email: name + '@mail.com', password: utils.password };",
+          "  },",
+          "",
+          "  // Registers a new user and saves username/email/token into collection variables with the given prefix.",
+          "  registerUser(prefix, callback) {",
+          "    const user = utils.uniqueUser();",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/users',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json' },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ user }) },",
+          "    }, (err, res) => {",
+          "      if (err || res.code !== 200) { console.log('registerUser failed', err, res && res.code, res && res.text()); return; }",
+          "      const data = res.json().user;",
+          "      pm.collectionVariables.set(prefix + 'Username', data.username);",
+          "      pm.collectionVariables.set(prefix + 'Email', data.email);",
+          "      pm.collectionVariables.set(prefix + 'Token', data.token);",
+          "      if (callback) callback(data);",
+          "    });",
+          "  },",
+          "",
+          "  // Creates an article for the user with the given token and saves its slug.",
+          "  createArticle(token, callback) {",
+          "    const tag = 'qa' + utils.randomString(5);",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json', Authorization: 'Token ' + token },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ article: { title: 'Title ' + utils.randomString(6), description: 'Description', body: 'Body text', tagList: [tag] } }) },",
+          "    }, (err, res) => {",
+          "      if (err) throw err;",
+          "      const article = res.json().article;",
+          "      pm.collectionVariables.set('slug', article.slug);",
+          "      pm.collectionVariables.set('tag', tag);",
+          "      if (callback) callback(article);",
+          "    });",
+          "  },",
+          "",
+          "  // Posts a comment to the article and saves the comment id.",
+          "  createComment(token, slug, callback) {",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles/' + slug + '/comments',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json', Authorization: 'Token ' + token },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ comment: { body: 'Comment ' + utils.randomString(6) } }) },",
+          "    }, (err, res) => {",
+          "      if (err) throw err;",
+          "      pm.collectionVariables.set('commentId', res.json().comment.id);",
+          "      if (callback) callback(res.json().comment);",
+          "    });",
+          "  },",
+          "",
+          "  // Deletes the created article to keep the database clean (called from the Tests tab).",
+          "  deleteArticle(slug, token) {",
+          "    pm.sendRequest({",
+          "      url: utils.baseUrl + '/articles/' + slug,",
+          "      method: 'DELETE',",
+          "      header: { Authorization: 'Token ' + token },",
+          "    }, () => {});",
+          "  },",
+          "",
+          "  // ---------- Reusable tests ----------",
+          "  assertStatus(code) {",
+          "    pm.test('Assert response status code is ' + code, () => pm.response.to.have.status(code));",
+          "  },",
+          "  assertTime(ms = 2000) {",
+          "    pm.test('Assert response time is less than ' + ms + ' ms', () => pm.expect(pm.response.responseTime).to.be.below(ms));",
+          "  },",
+          "  assertUserBody() {",
+          "    pm.test('Assert the response body has user properties', () => {",
+          "      const user = pm.response.json().user;",
+          "      pm.expect(user).to.have.all.keys('email', 'username', 'bio', 'image', 'token');",
+          "    });",
+          "  },",
+          "  assertArticleBody() {",
+          "    pm.test('Assert the response body has article properties', () => {",
+          "      const a = pm.response.json().article;",
+          "      pm.expect(a).to.include.keys('slug', 'title', 'description', 'body', 'tagList', 'createdAt', 'updatedAt', 'favorited', 'favoritesCount', 'author');",
+          "    });",
+          "  },",
+          "  assertArticlesList() {",
+          "    pm.test('Assert the response body has articles list and count', () => {",
+          "      const json = pm.response.json();",
+          "      pm.expect(json.articles).to.be.an('array');",
+          "      pm.expect(json.articlesCount).to.be.a('number');",
+          "    });",
+          "  },",
+          "  assertProfileBody() {",
+          "    pm.test('Assert the response body has profile properties', () => {",
+          "      pm.expect(pm.response.json().profile).to.include.keys('username', 'bio', 'image', 'following');",
+          "    });",
+          "  },",
+          "  assertError(field, message) {",
+          "    pm.test('Assert validation message for \"' + field + '\"', () => {",
+          "      const errors = pm.response.json().errors;",
+          "      pm.expect(errors).to.have.property(field);",
+          "      if (message) pm.expect(String(errors[field])).to.include(message);",
+          "    });",
+          "  },",
+          "};",
+          "return utils;",
+          "};"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "url",
+      "value": "https://conduit.mate.academy/api"
+    },
+    {
+      "key": "passwordConduit",
+      "value": "Qwerty!2026test"
+    }
+  ],
+  "item": [
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Successful sign in",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert email in response equals the registered email', () => pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('mainEmail')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"email\": \"{{mainEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in with non-existing credentials",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('randomEmail', 'none' + utils.randomString(10) + '@mail.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email or password', 'is invalid');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"email\": \"{{randomEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in with empty email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email', \"can't be blank\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"email\": \"\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in with empty password",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('password', \"can't be blank\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"email\": \"{{mainEmail}}\",\n    \"password\": \"\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Successful sign up",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "const u = utils.uniqueUser();",
+                  "pm.collectionVariables.set('newUsername', u.username);",
+                  "pm.collectionVariables.set('newEmail', u.email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert username in response equals the sent one', () => pm.expect(pm.response.json().user.username).to.eql(pm.collectionVariables.get('newUsername')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with taken username",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('username', 'already been taken');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{mainUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with taken email",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email', 'already been taken');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{mainEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with username starting from number",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testUsername', '1' + utils.randomString(7));",
+                  "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('username');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{testUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with username with 41 symbols",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testUsername', utils.randomString(41));",
+                  "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('username');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{testUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with username with spaces",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testUsername', 'qa ' + utils.randomString(5));",
+                  "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('username');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{testUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with empty username",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testUsername', '');",
+                  "pm.collectionVariables.set('newEmail', utils.uniqueUser().email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('username');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{testUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with empty email",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testEmail', '');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with email without @",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testEmail', 'qa' + utils.randomString(6) + 'mail.com');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with email without .",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testEmail', 'qa' + utils.randomString(6) + '@mailcom');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with email without name part",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testEmail', '@mail.com');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with email with more than 254 symbols",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "pm.collectionVariables.set('testEmail', utils.randomString(250) + '@mail.com');",
+                  "pm.collectionVariables.set('newUsername', utils.uniqueUser().username);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('email');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign up with empty password",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "const u = utils.uniqueUser();",
+                  "pm.collectionVariables.set('newUsername', u.username);",
+                  "pm.collectionVariables.set('newEmail', u.email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(422);",
+                  "utils.assertTime();",
+                  "utils.assertError('password', \"can't be blank\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"username\": \"{{newUsername}}\",\n    \"email\": \"{{newEmail}}\",\n    \"password\": \"\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get info about user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user"
+          }
+        },
+        {
+          "name": "Update info about user: image",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "const update = { image: 'https://i.imgur.com/qa' + utils.randomString(5) + '.png' };",
+                  "pm.collectionVariables.set('updateValue', update.image);",
+                  "pm.collectionVariables.set('updateUser', JSON.stringify(update));",
+                  "pm.request.body.update(JSON.stringify({ user: update }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert image was updated', () => pm.expect(pm.response.json().user.image).to.eql(pm.collectionVariables.get('updateValue')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update info about user: bio",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "const update = { bio: 'Bio ' + utils.randomString(10) };",
+                  "pm.collectionVariables.set('updateValue', update.bio);",
+                  "pm.collectionVariables.set('updateUser', JSON.stringify(update));",
+                  "pm.request.body.update(JSON.stringify({ user: update }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert bio was updated', () => pm.expect(pm.response.json().user.bio).to.eql(pm.collectionVariables.get('updateValue')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update info about user: username",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "const update = { username: 'qa' + utils.randomString(8) };",
+                  "pm.collectionVariables.set('updateValue', update.username);",
+                  "pm.collectionVariables.set('updateUser', JSON.stringify(update));",
+                  "pm.request.body.update(JSON.stringify({ user: update }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert username was updated', () => pm.expect(pm.response.json().user.username).to.eql(pm.collectionVariables.get('updateValue')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update info about user: email",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "const update = { email: 'qa' + utils.randomString(8) + '@mail.com' };",
+                  "pm.collectionVariables.set('updateValue', update.email);",
+                  "pm.collectionVariables.set('updateUser', JSON.stringify(update));",
+                  "pm.request.body.update(JSON.stringify({ user: update }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();",
+                  "pm.test('Assert email was updated', () => pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('updateValue')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update info about user: password",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "pm.collectionVariables.set('newPassword', pm.collectionVariables.get('passwordConduit') + 'X');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertUserBody();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"password\": \"{{newPassword}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update info about user without authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(401);",
+                  "utils.assertTime();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"bio\": \"No auth\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Articles",
+      "item": [
+        {
+          "name": "Create an article",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticleBody();",
+                  "utils.deleteArticle(pm.response.json().article.slug, pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"article\": {\n    \"title\": \"Title {{$randomInt}}\",\n    \"description\": \"Description\",\n    \"body\": \"Body text\",\n    \"tagList\": [\n      \"qa\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update an article",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticleBody();",
+                  "pm.test('Assert title was updated', () => pm.expect(pm.response.json().article.title).to.include('Updated title'));",
+                  "utils.deleteArticle(pm.response.json().article.slug, pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"article\": {\n    \"title\": \"Updated title {{$randomInt}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete an article",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(204);",
+                  "utils.assertTime();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}"
+          }
+        },
+        {
+          "name": "Get an article",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticleBody();",
+                  "pm.test('Assert slug equals the created one', () => pm.expect(pm.response.json().article.slug).to.eql(pm.collectionVariables.get('slug')));",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/articles/{{slug}}"
+          }
+        },
+        {
+          "name": "Get articles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticlesList();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/articles"
+          }
+        },
+        {
+          "name": "Get articles from Your feed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticlesList();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/feed?limit=10&offset=0"
+          }
+        },
+        {
+          "name": "Get articles from Global feed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticlesList();",
+                  "pm.test('Assert no more than 10 articles are returned', () => pm.expect(pm.response.json().articles.length).to.be.at.most(10));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/articles?limit=10&offset=0"
+          }
+        },
+        {
+          "name": "Get articles by tag",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertArticlesList();",
+                  "pm.test('Assert every article has the requested tag', () => pm.response.json().articles.forEach(a => pm.expect(a.tagList).to.include(pm.collectionVariables.get('tag'))));",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/articles?limit=10&tag={{tag}}&offset=0"
+          }
+        },
+        {
+          "name": "Create an article without authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(401);",
+                  "utils.assertTime();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/articles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"article\": {\n    \"title\": \"Title {{$randomInt}}\",\n    \"description\": \"Description\",\n    \"body\": \"Body text\",\n    \"tagList\": [\n      \"qa\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete an article without authorization",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(401);",
+                  "utils.assertTime();",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{url}}/articles/{{slug}}"
+          }
+        },
+        {
+          "name": "Delete an article of another user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token, () => utils.registerUser('second')));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(403);",
+                  "utils.assertTime();",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{secondToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}"
+          }
+        },
+        {
+          "name": "Delete non-existing article",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');",
+                  "pm.collectionVariables.set('randomSlug', 'no-such-article-' + utils.randomString(10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(404);",
+                  "utils.assertTime();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{randomSlug}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get info about profile",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertProfileBody();",
+                  "pm.test('Assert profile username', () => pm.expect(pm.response.json().profile.username).to.eql(pm.collectionVariables.get('mainUsername')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/profiles/{{mainUsername}}"
+          }
+        },
+        {
+          "name": "Follow the user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', () => utils.registerUser('second'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertProfileBody();",
+                  "pm.test('Assert \"following\" is true', () => pm.expect(pm.response.json().profile.following).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/profiles/{{secondUsername}}/follow"
+          }
+        },
+        {
+          "name": "Unfollow the user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.registerUser('second', (s) => pm.sendRequest({ url: utils.baseUrl + '/profiles/' + s.username + '/follow', method: 'POST', header: { Authorization: 'Token ' + u.token } }, () => {})));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "utils.assertProfileBody();",
+                  "pm.test('Assert \"following\" is false', () => pm.expect(pm.response.json().profile.following).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/profiles/{{secondUsername}}/follow"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "item": [
+        {
+          "name": "Get tags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "pm.test('Assert tags is an array', () => pm.expect(pm.response.json().tags).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/tags"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "item": [
+        {
+          "name": "Get comments",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "pm.test('Assert comments list contains the created comment', () => pm.expect(pm.response.json().comments.map(c => c.id)).to.include(pm.collectionVariables.get('commentId')));",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/articles/{{slug}}/comments"
+          }
+        },
+        {
+          "name": "Post a comment",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(200);",
+                  "utils.assertTime();",
+                  "pm.test('Assert the response body has comment properties', () => pm.expect(pm.response.json().comment).to.include.keys('id', 'body', 'createdAt', 'author'));",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}/comments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": {\n    \"body\": \"Comment {{$randomInt}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete a comment",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(204);",
+                  "utils.assertTime();",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{mainToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}/comments/{{commentId}}"
+          }
+        },
+        {
+          "name": "Delete a comment of another user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug, () => utils.registerUser('second'))));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(403);",
+                  "utils.assertTime();",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Token {{secondToken}}"
+              }
+            ],
+            "url": "{{url}}/articles/{{slug}}/comments/{{commentId}}"
+          }
+        },
+        {
+          "name": "Delete a comment without authorization",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.registerUser('main', (u) => utils.createArticle(u.token, (a) => utils.createComment(u.token, a.slug)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const utils = makeUtils(pm);",
+                  "utils.assertStatus(401);",
+                  "utils.assertTime();",
+                  "utils.deleteArticle(pm.collectionVariables.get('slug'), pm.collectionVariables.get('mainToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{url}}/articles/{{slug}}/comments/{{commentId}}"
+          }
+        }
+      ]
+    }
+  ]
+}
