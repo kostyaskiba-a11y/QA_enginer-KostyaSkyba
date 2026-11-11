@@ -1,0 +1,336 @@
+{
+  "info": {
+    "name": "Postman extended [Kostiantin Skyba]",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://conduit.mate.academy/api/"
+    },
+    {
+      "key": "passwordConduit",
+      "value": "Qwerty!2026test"
+    },
+    {
+      "key": "emailConduit",
+      "value": ""
+    },
+    {
+      "key": "tokenConduit",
+      "value": ""
+    },
+    {
+      "key": "slugConduit",
+      "value": ""
+    },
+    {
+      "key": "commentId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Registration",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response body contains user properties', function () {",
+              "  const jsonData = pm.response.json();",
+              "  pm.expect(jsonData.user).to.have.property('username');",
+              "  pm.expect(jsonData.user).to.have.property('email');",
+              "  pm.expect(jsonData.user).to.have.property('token');",
+              "  pm.expect(jsonData.user).to.have.property('bio');",
+              "  pm.expect(jsonData.user).to.have.property('image');",
+              "});",
+              "pm.collectionVariables.set('emailConduit', pm.response.json().user.email);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}users",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "users"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user\": {\n    \"username\": \"{{$randomUserName}}{{$randomInt}}\",\n    \"email\": \"{{$randomInt}}{{$randomEmail}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response body contains user properties', function () {",
+              "  const jsonData = pm.response.json();",
+              "  pm.expect(jsonData.user).to.have.property('username');",
+              "  pm.expect(jsonData.user).to.have.property('email');",
+              "  pm.expect(jsonData.user).to.have.property('token');",
+              "  pm.expect(jsonData.user).to.have.property('bio');",
+              "  pm.expect(jsonData.user).to.have.property('image');",
+              "});",
+              "pm.test('Email in response equals emailConduit', function () {",
+              "  pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('emailConduit'));",
+              "});",
+              "pm.collectionVariables.set('tokenConduit', pm.response.json().user.token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}users/login",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "users",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user\": {\n    \"email\": \"{{emailConduit}}\",\n    \"password\": \"{{passwordConduit}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Create an article",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response body contains article properties', function () {",
+              "  const jsonData = pm.response.json();",
+              "  pm.expect(jsonData.article).to.have.property('slug');",
+              "  pm.expect(jsonData.article).to.have.property('title');",
+              "  pm.expect(jsonData.article).to.have.property('description');",
+              "  pm.expect(jsonData.article).to.have.property('body');",
+              "  pm.expect(jsonData.article).to.have.property('tagList');",
+              "  pm.expect(jsonData.article).to.have.property('author');",
+              "});",
+              "pm.collectionVariables.set('slugConduit', pm.response.json().article.slug);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Token {{tokenConduit}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}articles",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "articles"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"article\": {\n    \"title\": \"Postman extended {{$randomInt}}\",\n    \"description\": \"Article topic\",\n    \"body\": \"Article body\",\n    \"tagList\": [\n      \"postman\"\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Post a comment",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response body contains comment properties', function () {",
+              "  const jsonData = pm.response.json();",
+              "  pm.expect(jsonData.comment).to.have.property('id');",
+              "  pm.expect(jsonData.comment).to.have.property('body');",
+              "  pm.expect(jsonData.comment).to.have.property('createdAt');",
+              "  pm.expect(jsonData.comment).to.have.property('author');",
+              "});",
+              "pm.collectionVariables.set('commentId', pm.response.json().comment.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Token {{tokenConduit}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}articles/{{slugConduit}}/comments",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "articles",
+            "{{slugConduit}}",
+            "comments"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"comment\": {\n    \"body\": \"Nice article!\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Delete a comment",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Token {{tokenConduit}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}articles/{{slugConduit}}/comments/{{commentId}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "articles",
+            "{{slugConduit}}",
+            "comments",
+            "{{commentId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Delete an article",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Token {{tokenConduit}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}articles/{{slugConduit}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "articles",
+            "{{slugConduit}}"
+          ]
+        }
+      }
+    }
+  ]
+}
